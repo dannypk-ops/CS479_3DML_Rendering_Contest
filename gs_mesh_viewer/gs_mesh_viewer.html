@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>3DGS + Animated Mesh Viewer</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #111; color: #eee; font-family: sans-serif; overflow: hidden; }
+#canvas-container { width: 100vw; height: 100vh; }
+
+#ui {
+  position: fixed; top: 16px; left: 16px;
+  background: rgba(0,0,0,0.75);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 10px;
+  padding: 14px 16px;
+  width: 270px;
+  z-index: 100;
+  font-size: 13px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+#ui h3 { font-size: 14px; font-weight: 500; margin-bottom: 12px; color: #fff; }
+.section { margin-bottom: 12px; }
+.section label { display: block; color: #aaa; margin-bottom: 4px; font-size: 12px; }
+.section input[type="text"] {
+  width: 100%; padding: 6px 8px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 6px; color: #fff; font-size: 12px;
+}
+.section button {
+  width: 100%; padding: 7px;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 6px; color: #fff; font-size: 12px;
+  cursor: pointer; margin-top: 4px;
+}
+.section button:hover { background: rgba(255,255,255,0.2); }
+.btn-blue {
+  background: rgba(50,120,255,0.25) !important;
+  border-color: rgba(80,150,255,0.4) !important;
+  color: #88bbff !important;
+}
+.btn-blue:hover { background: rgba(50,120,255,0.4) !important; }
+.btn-red {
+  background: rgba(200,50,50,0.25) !important;
+  border-color: rgba(255,100,100,0.4) !important;
+  color: #ff8888 !important;
+}
+.btn-red:hover { background: rgba(200,50,50,0.4) !important; }
+.btn-green {
+  background: rgba(30,160,80,0.3) !important;
+  border-color: rgba(60,200,100,0.4) !important;
+  color: #66ee99 !important;
+}
+.btn-green:hover { background: rgba(30,160,80,0.5) !important; }
+.divider { border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 10px 0; }
+.row { display: flex; gap: 6px; margin-top: 4px; align-items: center; }
+.row label { color: #888; font-size: 11px; width: 18px; flex-shrink: 0; }
+.row input[type="range"] { flex: 1; }
+.row span { font-size: 11px; color: #ccc; width: 38px; text-align: right; }
+
+.glb-item {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 7px; padding: 8px 10px; margin-bottom: 8px;
+}
+.glb-item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.glb-item-name { font-size: 11px; color: #ccc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
+.glb-item-header button { width: auto; padding: 2px 8px; font-size: 11px; background: rgba(255,80,80,0.2); border-color: rgba(255,80,80,0.3); color: #ff8888; margin-top: 0; }
+
+/* 키프레임 목록 */
+.kf-item {
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px; padding: 5px 8px; margin-bottom: 5px;
+  cursor: pointer; font-size: 11px; color: #ccc;
+}
+.kf-item:hover { background: rgba(255,255,255,0.1); }
+.kf-item.active { border-color: rgba(100,180,255,0.5); color: #88ccff; }
+.kf-item .kf-del { margin-left: auto; color: #ff6666; cursor: pointer; padding: 0 4px; font-size: 13px; }
+.kf-item .kf-del:hover { color: #ff3333; }
+
+#status {
+  position: fixed; bottom: 60px; left: 16px;
+  background: rgba(0,0,0,0.65);
+  border-radius: 6px; padding: 6px 12px;
+  font-size: 12px; color: #aaa; z-index: 100;
+}
+
+/* 하단 카메라/녹화 컨트롤 */
+#bottom-controls {
+  position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,0.8);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 10px; padding: 10px 16px;
+  display: flex; gap: 10px; align-items: center;
+  z-index: 100; font-size: 12px;
+}
+#bottom-controls button {
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 6px; color: #fff;
+  padding: 5px 14px; cursor: pointer; font-size: 12px;
+  white-space: nowrap;
+}
+#bottom-controls button:hover { background: rgba(255,255,255,0.2); }
+#bottom-controls select {
+  background: rgba(0,0,0,0.5);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 5px; color: #fff; font-size: 12px; padding: 3px 6px;
+}
+#record-countdown {
+  display: none;
+  background: rgba(200,50,50,0.9);
+  color: #fff; font-size: 16px; font-weight: 500;
+  padding: 4px 12px; border-radius: 6px;
+}
+#progress-bar-wrap {
+  display: none; width: 120px; height: 6px;
+  background: rgba(255,255,255,0.15); border-radius: 3px; overflow: hidden;
+}
+#progress-bar { height: 100%; width: 0%; background: #ff4444; border-radius: 3px; transition: width 0.1s; }
+</style>
+</head>
+<body>
+<div id="canvas-container"></div>
+
+<div id="ui">
+  <h3>3DGS + Mesh Viewer</h3>
+
+  <div class="section">
+    <label>3DGS PLY path</label>
+    <input type="text" id="ply-path" value="scene/origin_compressed.ply" />
+    <button onclick="loadSplat()">Load 3DGS</button>
+  </div>
+
+  <hr class="divider">
+
+  <div class="section">
+    <label>Scene (3DGS) rotation</label>
+    <div class="row"><label>Rx</label><input type="range" id="srx" min="-180" max="180" step="1" value="0" oninput="updateSceneTransform()"><span id="srx-val">0°</span></div>
+    <div class="row"><label>Ry</label><input type="range" id="sry" min="-180" max="180" step="1" value="0" oninput="updateSceneTransform()"><span id="sry-val">0°</span></div>
+    <div class="row"><label>Rz</label><input type="range" id="srz" min="-180" max="180" step="1" value="0" oninput="updateSceneTransform()"><span id="srz-val">0°</span></div>
+  </div>
+
+  <hr class="divider">
+
+  <div class="section">
+    <label>Add GLB</label>
+    <input type="text" id="glb-path" value="glb/nubjuki1.glb" placeholder="glb/filename.glb" />
+    <button onclick="addGLB()">+ Add GLB</button>
+    <button onclick="loadAllGLB()" class="btn-green" style="margin-top:4px">↓ Load All GLBs</button>
+  </div>
+  <div id="glb-list"></div>
+
+  <hr class="divider" id="transform-divider" style="display:none">
+  <div id="transform-panel" style="display:none">
+    <div class="section">
+      <label id="transform-title">GLB transform</label>
+      <div class="row"><label>X</label><input type="range" id="tx" min="-5" max="5" step="0.01" value="0" oninput="updateTransform()"><span id="tx-val">0.00</span></div>
+      <div class="row"><label>Y</label><input type="range" id="ty" min="-5" max="5" step="0.01" value="0" oninput="updateTransform()"><span id="ty-val">0.00</span></div>
+      <div class="row"><label>Z</label><input type="range" id="tz" min="-5" max="5" step="0.01" value="0" oninput="updateTransform()"><span id="tz-val">0.00</span></div>
+      <div class="row"><label>S</label><input type="range" id="scale" min="0.01" max="3" step="0.01" value="1" oninput="updateTransform()"><span id="scale-val">1.00</span></div>
+      <div class="row"><label>Rx</label><input type="range" id="rx" min="-180" max="180" step="1" value="0" oninput="updateTransform()"><span id="rx-val">0°</span></div>
+      <div class="row"><label>Ry</label><input type="range" id="ry" min="-180" max="180" step="1" value="0" oninput="updateTransform()"><span id="ry-val">0°</span></div>
+      <div class="row"><label>Rz</label><input type="range" id="rz" min="-180" max="180" step="1" value="0" oninput="updateTransform()"><span id="rz-val">0°</span></div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <div class="section">
+    <label>Scene Config</label>
+    <button class="btn-green" onclick="saveConfig()">💾 Save Config</button>
+    <button class="btn-blue" onclick="loadConfigFromServer()" style="margin-top:4px">📂 Load Config</button>
+  </div>
+
+  <hr class="divider">
+
+  <!-- 카메라 키프레임 -->
+  <div class="section">
+    <label>Camera Keyframes</label>
+    <button class="btn-blue" onclick="addKeyframe()">+ Add Current View</button>
+    <div id="kf-list" style="margin-top:8px;"></div>
+  </div>
+
+  <div class="section">
+    <div class="row" style="margin-top:0">
+      <label style="width:auto;color:#aaa;font-size:11px;">Duration</label>
+      <input type="range" id="kf-duration" min="3" max="30" step="1" value="10" oninput="document.getElementById('kf-dur-val').textContent=this.value+'s'">
+      <span id="kf-dur-val" style="width:32px;">10s</span>
+    </div>
+  </div>
+</div>
+
+<div id="status">Ready</div>
+
+<div id="bottom-controls">
+  <span style="color:#aaa;font-size:11px;">Anim:</span>
+  <select id="anim-select" onchange="switchAnim()"><option>—</option></select>
+  <button onclick="toggleAnim()">▶ Play</button>
+  <span id="anim-time" style="color:#aaa">0.0s</span>
+
+  <div style="width:1px;height:20px;background:rgba(255,255,255,0.15)"></div>
+
+  <button onclick="previewPath()" id="preview-btn">▶ Preview Path</button>
+  <button onclick="startRecording()" id="record-btn" class="btn-red">⏺ Record</button>
+  <div id="record-countdown"></div>
+  <div id="progress-bar-wrap"><div id="progress-bar"></div></div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/",
+    "@sparkjsdev/spark": "https://sparkjs.dev/releases/spark/2.1.0/spark.module.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { SparkRenderer, SplatMesh } from '@sparkjsdev/spark';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+
+const container = document.getElementById('canvas-container');
+const statusEl = document.getElementById('status');
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.0));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.NoToneMapping;
+container.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 1000);
+camera.position.set(0, 1, 3);
+
+const spark = new SparkRenderer({ renderer });
+scene.add(spark);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+controls.rotateSpeed = 0.5;
+controls.zoomSpeed = 0.8;
+controls.panSpeed = 0.5;
+
+// 조명
+const ambientLight = new THREE.AmbientLight(0xffffff, 3.0);
+scene.add(ambientLight);
+[[ 2, 4, 2],[-2, 2,-2],[ 0, 4,-2],[ 0,-4, 0],[-2,-2, 2]].forEach(([x,y,z]) => {
+  const l = new THREE.DirectionalLight(0xffffff, 2.0);
+  l.position.set(x, y, z);
+  scene.add(l);
+});
+
+let splatMesh = null;
+const clock = new THREE.Clock();
+let glbObjects = [], selectedId = null, glbCounter = 0;
+
+// ── 키프레임 ──────────────────────────────
+let keyframes = []; // { pos: Vector3, target: Vector3 }
+let isPlaying = false; // preview or record 중
+let playT = 0;
+let playDuration = 10;
+
+window.addKeyframe = function() {
+  const pos = camera.position.clone();
+  const target = controls.target.clone();
+  keyframes.push({ pos, target });
+  renderKFList();
+  statusEl.textContent = `Keyframe ${keyframes.length} added`;
+};
+
+window.removeKeyframe = function(i) {
+  keyframes.splice(i, 1);
+  renderKFList();
+};
+
+window.goToKeyframe = function(i) {
+  const kf = keyframes[i];
+  if (!kf) return;
+  camera.position.copy(kf.pos);
+  controls.target.copy(kf.target);
+  controls.update();
+};
+
+function renderKFList() {
+  const list = document.getElementById('kf-list');
+  list.innerHTML = '';
+  keyframes.forEach((kf, i) => {
+    const div = document.createElement('div');
+    div.className = 'kf-item';
+    div.innerHTML = `
+      <span style="color:#888;font-size:10px;width:16px">${i+1}</span>
+      <span>pos (${kf.pos.x.toFixed(1)}, ${kf.pos.y.toFixed(1)}, ${kf.pos.z.toFixed(1)})</span>
+      <span class="kf-del" onclick="event.stopPropagation();removeKeyframe(${i})">✕</span>`;
+    div.addEventListener('click', () => goToKeyframe(i));
+    list.appendChild(div);
+  });
+}
+
+// CatmullRom 경로로 카메라 보간
+function getCameraAtT(t) {
+  if (keyframes.length < 2) return null;
+  const positions = keyframes.map(kf => kf.pos);
+  const targets = keyframes.map(kf => kf.target);
+  const posCurve = new THREE.CatmullRomCurve3(positions, false, 'catmullrom', 0.5);
+  const tgtCurve = new THREE.CatmullRomCurve3(targets, false, 'catmullrom', 0.5);
+  return {
+    pos: posCurve.getPoint(t),
+    target: tgtCurve.getPoint(t)
+  };
+}
+
+// ── Preview ───────────────────────────────
+window.previewPath = function() {
+  if (keyframes.length < 2) { statusEl.textContent = 'Need at least 2 keyframes'; return; }
+  if (isPlaying) { stopPlay(); return; }
+  playDuration = parseFloat(document.getElementById('kf-duration').value);
+  playT = 0;
+  isPlaying = true;
+  controls.enabled = false;
+  document.getElementById('preview-btn').textContent = '⏹ Stop';
+  statusEl.textContent = 'Previewing path...';
+  clock.getDelta(); // reset
+};
+
+function stopPlay() {
+  isPlaying = false;
+  controls.enabled = true;
+  document.getElementById('preview-btn').textContent = '▶ Preview Path';
+  statusEl.textContent = 'Ready';
+}
+
+// ── Recording ─────────────────────────────
+window.startRecording = function() {
+  if (keyframes.length < 2) { statusEl.textContent = 'Need at least 2 keyframes'; return; }
+  if (isPlaying) return;
+
+  playDuration = parseFloat(document.getElementById('kf-duration').value);
+  playT = 0;
+  isPlaying = true;
+  controls.enabled = false;
+
+  const countdown = document.getElementById('record-countdown');
+  const progressWrap = document.getElementById('progress-bar-wrap');
+  const progressBar = document.getElementById('progress-bar');
+  const btn = document.getElementById('record-btn');
+
+  btn.disabled = true;
+  btn.style.opacity = '0.5';
+  countdown.style.display = 'block';
+  progressWrap.style.display = 'block';
+  countdown.textContent = '⏺ REC';
+
+  const stream = renderer.domElement.captureStream(30);
+  const chunks = [];
+  const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+    ? 'video/webm;codecs=vp9' : 'video/webm';
+  const rec = new MediaRecorder(stream, { mimeType });
+  rec.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+  rec.onstop = () => {
+    const blob = new Blob(chunks, { type: 'video/webm' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = '3dgs_scene.webm';
+    a.click();
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    countdown.style.display = 'none';
+    progressWrap.style.display = 'none';
+    progressBar.style.width = '0%';
+    stopPlay();
+    statusEl.textContent = 'Saved: 3dgs_scene.webm';
+  };
+
+  rec.start();
+
+  // playT 진행 감지해서 종료
+  const checkDone = setInterval(() => {
+    const pct = Math.min(playT / playDuration * 100, 100);
+    progressBar.style.width = pct + '%';
+    if (playT >= playDuration) {
+      clearInterval(checkDone);
+      rec.stop();
+    }
+  }, 100);
+
+  statusEl.textContent = 'Recording...';
+};
+
+// ── Animation loop ────────────────────────
+renderer.setAnimationLoop(function() {
+  const delta = clock.getDelta();
+
+  if (isPlaying && keyframes.length >= 2) {
+    playT += delta;
+    const t = Math.min(playT / playDuration, 1.0);
+    const cam = getCameraAtT(t);
+    if (cam) {
+      camera.position.copy(cam.pos);
+      controls.target.copy(cam.target);
+      camera.lookAt(cam.target);
+    }
+    if (playT >= playDuration) stopPlay();
+  } else {
+    controls.update();
+  }
+
+  glbObjects.forEach(entry => { if (entry.mixer) entry.mixer.update(delta); });
+  const sel = glbObjects.find(g => g.id === selectedId);
+  if (sel?.mixer) {
+    document.getElementById('anim-time').textContent = sel.mixer.time.toFixed(1) + 's';
+  }
+
+  renderer.render(scene, camera);
+});
+
+// ── Splat ─────────────────────────────────
+window.loadSplat = async function() {
+  const path = document.getElementById('ply-path').value.trim();
+  statusEl.textContent = 'Loading 3DGS...';
+  try {
+    if (splatMesh) { scene.remove(splatMesh); splatMesh = null; }
+    splatMesh = new SplatMesh({ url: path });
+    scene.add(splatMesh);
+    statusEl.textContent = '3DGS loaded: ' + path;
+  } catch(e) { statusEl.textContent = 'Error: ' + e.message; }
+};
+
+// ── GLB ───────────────────────────────────
+// GLB 파일 목록 (서버 폴더 기준)
+const GLB_FILES = [
+  'glb/animation_hubo.glb',
+  'glb/nubjuki1.glb',
+  'glb/nubjuki2.glb',
+  'glb/nubjuki3_pink.glb',
+  'glb/nubjuki4_green.glb',
+];
+
+window.loadAllGLB = async function() {
+  statusEl.textContent = 'Loading all GLBs...';
+  for (const path of GLB_FILES) {
+    document.getElementById('glb-path').value = path;
+    await new Promise((resolve) => {
+      makeGLTFLoader().load(path, (gltf) => {
+        const id = ++glbCounter;
+        const obj = gltf.scene;
+        scene.add(obj);
+        const mixer = new THREE.AnimationMixer(obj);
+        const actions = gltf.animations.map(clip => mixer.clipAction(clip));
+        const currentAction = actions[0] || null;
+        if (currentAction) currentAction.play();
+        const entry = { id, name: path.split('/').pop(), object: obj, mixer, actions, currentAction, playing: actions.length > 0, transform: { tx:0, ty:0, tz:0, scale:1, rx:0, ry:0, rz:0 } };
+        glbObjects.push(entry);
+        renderGLBList();
+        resolve();
+      }, undefined, e => { statusEl.textContent = 'Error: ' + e.message; resolve(); });
+    });
+  }
+  if (glbObjects.length > 0) selectGLB(glbObjects[glbObjects.length-1].id);
+  statusEl.textContent = `Loaded ${glbObjects.length} GLBs`;
+};
+
+const dracoLoader = new DRACOLoader();
+dracoLoader.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/libs/draco/');
+
+function makeGLTFLoader() {
+  const loader = new GLTFLoader();
+  loader.setDRACOLoader(dracoLoader);
+  return loader;
+}
+
+window.addGLB = function() {
+  const path = document.getElementById('glb-path').value.trim();
+  if (!path) return;
+  statusEl.textContent = 'Loading GLB...';
+  makeGLTFLoader().load(path, (gltf) => {
+    const id = ++glbCounter;
+    const obj = gltf.scene;
+    scene.add(obj);
+    const mixer = new THREE.AnimationMixer(obj);
+    const actions = gltf.animations.map(clip => mixer.clipAction(clip));
+    const currentAction = actions[0] || null;
+    if (currentAction) currentAction.play();
+    const entry = { id, name: path.split('/').pop(), object: obj, mixer, actions, currentAction, playing: actions.length > 0, transform: { tx:0, ty:0, tz:0, scale:1, rx:0, ry:0, rz:0 } };
+    glbObjects.push(entry);
+    renderGLBList();
+    selectGLB(id);
+    statusEl.textContent = `GLB loaded: ${entry.name} (${actions.length} anims)`;
+  }, undefined, e => { statusEl.textContent = 'GLB error: ' + e.message; });
+};
+
+window.removeGLB = function(id) {
+  const idx = glbObjects.findIndex(g => g.id === id);
+  if (idx === -1) return;
+  scene.remove(glbObjects[idx].object);
+  glbObjects.splice(idx, 1);
+  selectedId = glbObjects.length > 0 ? glbObjects[glbObjects.length-1].id : null;
+  renderGLBList();
+  if (selectedId) selectGLB(selectedId);
+  else {
+    document.getElementById('transform-panel').style.display = 'none';
+    document.getElementById('transform-divider').style.display = 'none';
+    updateAnimControls(null);
+  }
+};
+
+window.selectGLB = function(id) {
+  selectedId = id;
+  const entry = glbObjects.find(g => g.id === id);
+  if (!entry) return;
+  document.getElementById('transform-panel').style.display = 'block';
+  document.getElementById('transform-divider').style.display = 'block';
+  document.getElementById('transform-title').textContent = `Transform: ${entry.name}`;
+  const t = entry.transform;
+  ['tx','ty','tz','scale','rx','ry','rz'].forEach(k => document.getElementById(k).value = t[k]);
+  updateTransformDisplay(t);
+  updateAnimControls(entry);
+  document.querySelectorAll('.glb-item').forEach(el => {
+    el.style.borderColor = el.dataset.id == id ? 'rgba(100,180,255,0.5)' : 'rgba(255,255,255,0.12)';
+  });
+};
+
+window.updateTransform = function() {
+  const entry = glbObjects.find(g => g.id === selectedId);
+  if (!entry) return;
+  const t = { tx: +document.getElementById('tx').value, ty: +document.getElementById('ty').value, tz: +document.getElementById('tz').value, scale: +document.getElementById('scale').value, rx: +document.getElementById('rx').value, ry: +document.getElementById('ry').value, rz: +document.getElementById('rz').value };
+  entry.transform = t;
+  entry.object.position.set(t.tx, t.ty, t.tz);
+  entry.object.scale.setScalar(t.scale);
+  entry.object.rotation.set(THREE.MathUtils.degToRad(t.rx), THREE.MathUtils.degToRad(t.ry), THREE.MathUtils.degToRad(t.rz));
+  updateTransformDisplay(t);
+};
+
+function updateTransformDisplay(t) {
+  document.getElementById('tx-val').textContent = t.tx.toFixed(2);
+  document.getElementById('ty-val').textContent = t.ty.toFixed(2);
+  document.getElementById('tz-val').textContent = t.tz.toFixed(2);
+  document.getElementById('scale-val').textContent = t.scale.toFixed(2);
+  document.getElementById('rx-val').textContent = t.rx + '°';
+  document.getElementById('ry-val').textContent = t.ry + '°';
+  document.getElementById('rz-val').textContent = t.rz + '°';
+}
+
+window.updateSceneTransform = function() {
+  if (!splatMesh) return;
+  const rx = +document.getElementById('srx').value;
+  const ry = +document.getElementById('sry').value;
+  const rz = +document.getElementById('srz').value;
+  splatMesh.rotation.set(THREE.MathUtils.degToRad(rx), THREE.MathUtils.degToRad(ry), THREE.MathUtils.degToRad(rz));
+  document.getElementById('srx-val').textContent = rx + '°';
+  document.getElementById('sry-val').textContent = ry + '°';
+  document.getElementById('srz-val').textContent = rz + '°';
+};
+
+function updateAnimControls(entry) {
+  const sel = document.getElementById('anim-select');
+  sel.innerHTML = '';
+  if (!entry || entry.actions.length === 0) { sel.innerHTML = '<option>No animations</option>'; return; }
+  entry.actions.forEach((_, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = entry.mixer._actions[i]?._clip?.name || 'Clip ' + i;
+    sel.appendChild(opt);
+  });
+  document.querySelector('#bottom-controls button').textContent = entry.playing ? '⏸ Pause' : '▶ Play';
+}
+
+window.switchAnim = function() {
+  const entry = glbObjects.find(g => g.id === selectedId);
+  if (!entry) return;
+  const idx = parseInt(document.getElementById('anim-select').value);
+  if (entry.currentAction) entry.currentAction.stop();
+  entry.currentAction = entry.actions[idx];
+  if (entry.playing) entry.currentAction.play();
+};
+
+window.toggleAnim = function() {
+  const entry = glbObjects.find(g => g.id === selectedId);
+  if (!entry || !entry.currentAction) return;
+  entry.playing = !entry.playing;
+  entry.playing ? entry.currentAction.play() : entry.currentAction.pause();
+  document.querySelector('#bottom-controls button').textContent = entry.playing ? '⏸ Pause' : '▶ Play';
+};
+
+function renderGLBList() {
+  const list = document.getElementById('glb-list');
+  list.innerHTML = '';
+  glbObjects.forEach(entry => {
+    const div = document.createElement('div');
+    div.className = 'glb-item';
+    div.dataset.id = entry.id;
+    div.style.cursor = 'pointer';
+    div.innerHTML = `<div class="glb-item-header"><span class="glb-item-name">${entry.name}</span><button onclick="event.stopPropagation();removeGLB(${entry.id})">✕</button></div>`;
+    div.addEventListener('click', () => selectGLB(entry.id));
+    list.appendChild(div);
+  });
+}
+
+// ── Config 저장/불러오기 ─────────────────
+window.saveConfig = function() {
+  const config = {
+    ply: document.getElementById('ply-path').value.trim(),
+    sceneRotation: {
+      rx: +document.getElementById('srx').value,
+      ry: +document.getElementById('sry').value,
+      rz: +document.getElementById('srz').value,
+    },
+    glbObjects: glbObjects.map(entry => ({
+      name: entry.name,
+      path: 'glb/' + entry.name,
+      transform: entry.transform,
+    })),
+    keyframes: keyframes.map(kf => ({
+      pos: { x: kf.pos.x, y: kf.pos.y, z: kf.pos.z },
+      target: { x: kf.target.x, y: kf.target.y, z: kf.target.z },
+    })),
+    duration: +document.getElementById('kf-duration').value,
+  };
+  const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'scene_config.json';
+  a.click();
+  statusEl.textContent = 'Config saved: scene_config.json';
+};
+
+window.loadConfigFromServer = async function() {
+  const configPath = 'config/scene_config.json';
+  statusEl.textContent = 'Loading config from server...';
+  let config;
+  try {
+    const res = await fetch(configPath);
+    if (!res.ok) throw new Error('scene_config.json not found on server');
+    config = await res.json();
+  } catch(e) {
+    statusEl.textContent = 'Error: ' + e.message;
+    return;
+  }
+  await applyConfig(config);
+};
+
+window.loadConfig = async function(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const text = await file.text();
+  const config = JSON.parse(text);
+  await applyConfig(config);
+};
+
+async function applyConfig(config) {
+
+  // PLY 로드
+  document.getElementById('ply-path').value = config.ply;
+  await window.loadSplat();
+
+  // Scene rotation 복원
+  if (config.sceneRotation) {
+    document.getElementById('srx').value = config.sceneRotation.rx;
+    document.getElementById('sry').value = config.sceneRotation.ry;
+    document.getElementById('srz').value = config.sceneRotation.rz;
+    document.getElementById('srx-val').textContent = config.sceneRotation.rx + '°';
+    document.getElementById('sry-val').textContent = config.sceneRotation.ry + '°';
+    document.getElementById('srz-val').textContent = config.sceneRotation.rz + '°';
+    updateSceneTransform();
+  }
+
+  // GLB 순서대로 로드 후 transform 복원
+  for (const g of config.glbObjects) {
+    await new Promise((resolve) => {
+      makeGLTFLoader().load(g.path, (gltf) => {
+        const id = ++glbCounter;
+        const obj = gltf.scene;
+        scene.add(obj);
+        const mixer = new THREE.AnimationMixer(obj);
+        const actions = gltf.animations.map(clip => mixer.clipAction(clip));
+        const currentAction = actions[0] || null;
+        if (currentAction) currentAction.play();
+        const entry = { id, name: g.name, object: obj, mixer, actions, currentAction, playing: actions.length > 0, transform: g.transform };
+        // transform 즉시 적용
+        const t = g.transform;
+        obj.position.set(t.tx, t.ty, t.tz);
+        obj.scale.setScalar(t.scale);
+        obj.rotation.set(
+          THREE.MathUtils.degToRad(t.rx),
+          THREE.MathUtils.degToRad(t.ry),
+          THREE.MathUtils.degToRad(t.rz)
+        );
+        glbObjects.push(entry);
+        renderGLBList();
+        resolve();
+      }, undefined, e => { statusEl.textContent = 'GLB error: ' + e.message; resolve(); });
+    });
+  }
+
+  // 키프레임 복원
+  if (config.keyframes) {
+    keyframes = config.keyframes.map(kf => ({
+      pos: new THREE.Vector3(kf.pos.x, kf.pos.y, kf.pos.z),
+      target: new THREE.Vector3(kf.target.x, kf.target.y, kf.target.z),
+    }));
+    renderKFList();
+  }
+
+  // Duration 복원
+  if (config.duration) {
+    document.getElementById('kf-duration').value = config.duration;
+    document.getElementById('kf-dur-val').textContent = config.duration + 's';
+  }
+
+  if (glbObjects.length > 0) selectGLB(glbObjects[glbObjects.length-1].id);
+  statusEl.textContent = 'Config loaded!';
+};
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>

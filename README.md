@@ -1,8 +1,10 @@
 # CS479 3DML Rendering Contest — Team 15
 
-A real-world indoor scene reconstructed with 3D Gaussian Splatting, combined with AI-generated animated 3D characters rendered in a custom web-based viewer.
+## Hubo Joins the 3D Segmentation Contest!!!
 
 ---
+
+![Demo](demo.png)
 
 ## Overview
 
